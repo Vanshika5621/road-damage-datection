@@ -1,0 +1,67 @@
+f = open("templates/index.html", "w")
+f.write("""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Road Damage Detection</title>
+<style>
+body{font-family:Arial,sans-serif;background:#1a1a2e;color:white;min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0}
+.container{background:#16213e;padding:40px;border-radius:20px;width:90%;max-width:600px}
+h1{text-align:center;color:#667eea;font-size:2rem;margin-bottom:10px}
+.subtitle{text-align:center;color:#888;margin-bottom:30px}
+.upload-area{border:2px dashed #667eea;border-radius:15px;padding:40px;text-align:center;margin-bottom:20px;cursor:pointer}
+input[type=file]{display:none}
+img{max-width:100%;border-radius:10px;margin:15px 0;display:none}
+.btn{background:#667eea;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;cursor:pointer;width:100%}
+.result{margin-top:25px;padding:25px;border-radius:15px;text-align:center;display:none}
+.conf{font-size:2rem;font-weight:bold;margin:10px 0}
+.load{display:none;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Road Damage Detection</h1>
+<p class="subtitle">Upload a road image to detect damage using AI</p>
+<div class="upload-area">
+<label for="fi">
+<div style="font-size:3rem">📸</div>
+<p>Click to upload road image</p>
+</label>
+<input type="file" id="fi" accept="image/*">
+</div>
+<img id="prev" src="" alt="Preview">
+<button class="btn" onclick="detect()">Detect Damage</button>
+<div class="load" id="load"><p>Analyzing...</p></div>
+<div class="result" id="res">
+<h2 id="rtxt"></h2>
+<div class="conf" id="ctxt"></div>
+<div id="stxt"></div>
+</div>
+</div>
+<script>
+document.getElementById('fi').onchange=function(e){
+var f=e.target.files[0];
+if(f){var r=new FileReader();
+r.onload=function(e){var p=document.getElementById('prev');p.src=e.target.result;p.style.display='block'};
+r.readAsDataURL(f)}};
+function detect(){
+var f=document.getElementById('fi');
+if(!f.files[0]){alert('Please select an image!');return}
+document.getElementById('load').style.display='block';
+document.getElementById('res').style.display='none';
+var fd=new FormData();fd.append('file',f.files[0]);
+fetch('/predict',{method:'POST',body:fd})
+.then(r=>r.json())
+.then(d=>{
+document.getElementById('load').style.display='none';
+var rb=document.getElementById('res');
+rb.style.display='block';
+rb.style.background=d.color==='red'?'rgba(255,0,0,0.2)':'rgba(0,255,0,0.2)';
+document.getElementById('rtxt').textContent=d.result;
+document.getElementById('ctxt').textContent=d.confidence+'% Confidence';
+document.getElementById('stxt').textContent='Severity: '+d.severity})}
+</script>
+</body>
+</html>""")
+f.close()
+print("Done!")
