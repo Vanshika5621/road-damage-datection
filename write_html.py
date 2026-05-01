@@ -5,61 +5,177 @@ f.write("""<!DOCTYPE html>
 <meta charset="UTF-8">
 <title>Road Damage Detection</title>
 <style>
-body{font-family:Arial,sans-serif;background:#1a1a2e;color:white;min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0}
-.container{background:#16213e;padding:40px;border-radius:20px;width:90%;max-width:600px}
-h1{text-align:center;color:#667eea;font-size:2rem;margin-bottom:10px}
-.subtitle{text-align:center;color:#888;margin-bottom:30px}
-.upload-area{border:2px dashed #667eea;border-radius:15px;padding:40px;text-align:center;margin-bottom:20px;cursor:pointer}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#1a1a2e;color:white;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.container{background:#16213e;padding:30px;border-radius:20px;width:95%;max-width:700px}
+h1{text-align:center;color:#667eea;font-size:2rem;margin-bottom:8px}
+.subtitle{text-align:center;color:#888;margin-bottom:20px}
+.tabs{display:flex;gap:10px;margin-bottom:20px}
+.tab{flex:1;padding:12px;border:none;border-radius:10px;cursor:pointer;font-size:1rem;font-weight:bold;transition:0.3s}
+.tab.active{background:#667eea;color:white}
+.tab:not(.active){background:#0f3460;color:#aaa}
+.section{display:none}
+.section.active{display:block}
+.upload-area{border:2px dashed #667eea;border-radius:15px;padding:30px;text-align:center;margin-bottom:15px;cursor:pointer}
 input[type=file]{display:none}
-img{max-width:100%;border-radius:10px;margin:15px 0;display:none}
-.btn{background:#667eea;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;cursor:pointer;width:100%}
-.result{margin-top:25px;padding:25px;border-radius:15px;text-align:center;display:none}
-.conf{font-size:2rem;font-weight:bold;margin:10px 0}
-.load{display:none;text-align:center;margin-top:20px}
+img#preview{max-width:100%;border-radius:10px;margin:10px 0;display:none}
+.btn{background:#667eea;color:white;border:none;padding:14px;border-radius:10px;font-size:1rem;cursor:pointer;width:100%;margin-top:8px}
+.btn.red{background:#e74c3c}
+.btn.green{background:#27ae60}
+.result{margin-top:15px;padding:20px;border-radius:15px;text-align:center;display:none}
+.conf{font-size:2rem;font-weight:bold;margin:8px 0}
+.load{display:none;text-align:center;margin-top:15px;color:#667eea}
+img#videoFeed{width:100%;border-radius:10px;margin-bottom:10px;display:none}
+video#vidPreview{width:100%;border-radius:10px;margin:10px 0;display:none}
+.vid-upload-area{border:2px dashed #e67e22;border-radius:15px;padding:30px;text-align:center;margin-bottom:15px;cursor:pointer}
 </style>
 </head>
 <body>
 <div class="container">
 <h1>Road Damage Detection</h1>
-<p class="subtitle">Upload a road image to detect damage using AI</p>
-<div class="upload-area">
-<label for="fi">
-<div style="font-size:3rem">📸</div>
-<p>Click to upload road image</p>
-</label>
+<p class="subtitle">AI-powered road damage analysis system</p>
+
+<div class="tabs">
+<button class="tab active" onclick="showTab('image',this)">Image Detection</button>
+<button class="tab" onclick="showTab('camera',this)">Live Camera</button>
+<button class="tab" onclick="showTab('video',this)">Video Detection</button>
+</div>
+
+<!-- IMAGE SECTION -->
+<div class="section active" id="imageSection">
+<div class="upload-area" onclick="document.getElementById('fi').click()">
+<p style="font-size:1.2rem;margin-bottom:8px">Click to upload road image</p>
+<p style="color:#888;font-size:0.8rem">JPG, PNG supported</p>
+</div>
 <input type="file" id="fi" accept="image/*">
+<img id="preview" src="" alt="Preview">
+<button class="btn" onclick="detectImage()">Detect Damage</button>
+<div class="load" id="imgLoad"><p>Analyzing image...</p></div>
+<div class="result" id="imgResult">
+<h2 id="imgResultText"></h2>
+<div class="conf" id="imgConf"></div>
+<div id="imgSev"></div>
 </div>
-<img id="prev" src="" alt="Preview">
-<button class="btn" onclick="detect()">Detect Damage</button>
-<div class="load" id="load"><p>Analyzing...</p></div>
-<div class="result" id="res">
-<h2 id="rtxt"></h2>
-<div class="conf" id="ctxt"></div>
-<div id="stxt"></div>
+</div>
+
+<!-- CAMERA SECTION -->
+<div class="section" id="cameraSection">
+<p style="text-align:center;color:#aaa;margin-bottom:15px">Live camera detects road damage in real-time</p>
+<img id="videoFeed" src="" alt="Live Feed">
+<div style="display:flex;gap:10px">
+<button class="btn green" id="startBtn" onclick="startCamera()">Start Live Camera</button>
+<button class="btn red" id="stopBtn" onclick="stopCamera()" style="display:none">Stop Camera</button>
 </div>
 </div>
+
+<!-- VIDEO SECTION -->
+<div class="section" id="videoSection">
+<div class="vid-upload-area" onclick="document.getElementById('vi').click()">
+<p style="font-size:1.2rem;margin-bottom:8px">Click to upload road video</p>
+<p style="color:#888;font-size:0.8rem">MP4, AVI, MOV supported</p>
+</div>
+<input type="file" id="vi" accept="video/*">
+<video id="vidPreview" controls></video>
+<button class="btn" onclick="detectVideo()">Analyze Video</button>
+<div class="load" id="vidLoad"><p>Analyzing video frames...</p></div>
+<div class="result" id="vidResult">
+<h2 id="vidResultText"></h2>
+<div class="conf" id="vidConf"></div>
+<div id="vidSev"></div>
+</div>
+</div>
+</div>
+
 <script>
-document.getElementById('fi').onchange=function(e){
-var f=e.target.files[0];
-if(f){var r=new FileReader();
-r.onload=function(e){var p=document.getElementById('prev');p.src=e.target.result;p.style.display='block'};
-r.readAsDataURL(f)}};
-function detect(){
-var f=document.getElementById('fi');
-if(!f.files[0]){alert('Please select an image!');return}
-document.getElementById('load').style.display='block';
-document.getElementById('res').style.display='none';
-var fd=new FormData();fd.append('file',f.files[0]);
-fetch('/predict',{method:'POST',body:fd})
-.then(r=>r.json())
-.then(d=>{
-document.getElementById('load').style.display='none';
-var rb=document.getElementById('res');
-rb.style.display='block';
-rb.style.background=d.color==='red'?'rgba(255,0,0,0.2)':'rgba(0,255,0,0.2)';
-document.getElementById('rtxt').textContent=d.result;
-document.getElementById('ctxt').textContent=d.confidence+'% Confidence';
-document.getElementById('stxt').textContent='Severity: '+d.severity})}
+function showTab(tab, el) {
+  stopCamera();
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(tab+'Section').classList.add('active');
+}
+
+document.getElementById('fi').onchange = function(e) {
+  var f = e.target.files[0];
+  if(f) {
+    var r = new FileReader();
+    r.onload = function(e) {
+      var p = document.getElementById('preview');
+      p.src = e.target.result;
+      p.style.display = 'block';
+    };
+    r.readAsDataURL(f);
+  }
+};
+
+function detectImage() {
+  var f = document.getElementById('fi');
+  if(!f.files[0]) { alert('Please select an image!'); return; }
+  document.getElementById('imgLoad').style.display = 'block';
+  document.getElementById('imgResult').style.display = 'none';
+  var fd = new FormData();
+  fd.append('file', f.files[0]);
+  fetch('/predict', {method:'POST', body:fd})
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('imgLoad').style.display = 'none';
+    var rb = document.getElementById('imgResult');
+    rb.style.display = 'block';
+    rb.style.background = d.color==='red' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,0,0.2)';
+    document.getElementById('imgResultText').textContent = d.result;
+    document.getElementById('imgConf').textContent = d.confidence + '% Confidence';
+    document.getElementById('imgSev').textContent = 'Severity: ' + d.severity;
+  });
+}
+
+var cameraRunning = false;
+function startCamera() {
+  cameraRunning = true;
+  document.getElementById('videoFeed').src = '/video_feed';
+  document.getElementById('videoFeed').style.display = 'block';
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'block';
+}
+
+function stopCamera() {
+  if(cameraRunning) {
+    fetch('/stop_camera', {method:'POST'});
+    cameraRunning = false;
+  }
+  document.getElementById('videoFeed').src = '';
+  document.getElementById('videoFeed').style.display = 'none';
+  document.getElementById('startBtn').style.display = 'block';
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+document.getElementById('vi').onchange = function(e) {
+  var f = e.target.files[0];
+  if(f) {
+    var vp = document.getElementById('vidPreview');
+    vp.src = URL.createObjectURL(f);
+    vp.style.display = 'block';
+  }
+};
+
+function detectVideo() {
+  var f = document.getElementById('vi');
+  if(!f.files[0]) { alert('Please select a video!'); return; }
+  document.getElementById('vidLoad').style.display = 'block';
+  document.getElementById('vidResult').style.display = 'none';
+  var fd = new FormData();
+  fd.append('file', f.files[0]);
+  fetch('/predict_video', {method:'POST', body:fd})
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('vidLoad').style.display = 'none';
+    var rb = document.getElementById('vidResult');
+    rb.style.display = 'block';
+    rb.style.background = d.color==='red' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,0,0.2)';
+    document.getElementById('vidResultText').textContent = d.result;
+    document.getElementById('vidConf').textContent = d.confidence + '% Confidence';
+    document.getElementById('vidSev').textContent = 'Severity: ' + d.severity + ' | Damaged Frames: ' + d.damaged_frames + '/' + d.total_frames;
+  });
+}
 </script>
 </body>
 </html>""")
