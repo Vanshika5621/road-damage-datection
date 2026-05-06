@@ -1,6 +1,8 @@
 # Road Damage Detection System
 
-A deep learning-based web application to detect road damage using CNN.
+A deep learning-based web application to detect road damage using CNN and Transfer Learning.
+
+"Our model performs binary classification — it detects both damaged and undamaged roads. For plain roads, it outputs low confidence score indicating no damage present."
 
 ## Features
 - Image-based road damage detection
@@ -9,37 +11,37 @@ A deep learning-based web application to detect road damage using CNN.
 - Confidence score and severity level
 
 ## Tech Stack
-- Python 3.11, TensorFlow 2.21, Flask 3.1
+- Python 3.11, TensorFlow 2.21, FastAPI, Uvicorn
 - OpenCV, NumPy, Pillow
 - HTML, CSS, JavaScript
-- Dataset: Kaggle Annotated Potholes Dataset (665 images)
+- Dataset: Kaggle Potholes and Road Damage (1000 images)
 
 ## How to Run
 1. Clone repository
-2. Create virtual environment: python3.11 -m venv venv
-3. Activate: source venv/bin/activate
-4. Install: pip install flask opencv-python-headless tensorflow numpy pillow
-5. Train model: python train_model.py
-6. Run app: python app.py
-7. Open browser: http://localhost:5000
+2. Create virtual environment: `python3.11 -m venv venv`
+3. Activate: `source venv/bin/activate`
+4. Install dependencies: `pip install -r requirements.txt`
+5. Train model: `python train_model.py` (optional, pre-trained model available)
+6. Run app: `uvicorn app:app --host 0.0.0.0 --port 5000`
+7. Open browser: `http://localhost:5000`
 
 ## Model Architecture
-- Input: 128x128 RGB images
-- Conv2D(32) + MaxPooling
-- Conv2D(64) + MaxPooling  
-- Conv2D(128) + MaxPooling
-- Dense(128) + Dropout(0.5)
-- Output: Sigmoid (Binary Classification)
+- Input: 224x224 RGB images
+- Base Model: MobileNetV2 (Pre-trained on ImageNet, Transfer Learning)
+- Classification Head: 
+  - GlobalAveragePooling2D
+  - Dense(128) + BatchNormalization + Dropout(0.5)
+  - Output: Dense(1) with Sigmoid (Binary Classification)
 
 ## Results
 - Training Accuracy: 100%
-- Dataset: 665 road images with XML annotations
-- Model Size: 12.61 MB
+- Dataset: 1000 road images with XML annotations (trolololo888/potholes-and-road-damage-with-annotations)
+- Improved feature extraction via MobileNetV2 fine-tuning.
 
 ## Project Structure
 road-damage-detection/
-├── app.py              # Flask backend
-├── train_model.py      # CNN training script
+├── app.py              # FastAPI backend
+├── train_model.py      # Transfer Learning script
 ├── templates/
 │   └── index.html      # Frontend
 ├── model/
@@ -53,5 +55,5 @@ https://github.com/Vanshika5621/road-damage-datection
 
 ## References
 - TensorFlow: https://tensorflow.org
-- Kaggle Dataset: chitholian/annotated-potholes-dataset
-- Flask: https://flask.palletsprojects.com
+- Kaggle Dataset: trolololo888/potholes-and-road-damage-with-annotations
+- FastAPI: https://fastapi.tiangolo.com

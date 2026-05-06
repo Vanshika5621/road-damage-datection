@@ -1,0 +1,14 @@
+<annotation>
+    <folder>good-roads</folder>
+    <filename>good_road_032.jpg</filename>
+    <path>/Users/vanshikasoni/Desktop/road-damage-detection/dataset/good-roads/good_road_032.jpg</path>
+    <source>
+        <database>Synthetic Good Road</database>
+    </source>
+    <size>
+        <width>800</width>
+        <height>600</height>
+        <depth>3</depth>
+    </size>
+    <segmented>0</segmented>
+</annotation>
