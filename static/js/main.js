@@ -141,12 +141,35 @@ function showResult(prefix, data) {
         'linear-gradient(90deg,#da3633,#f85149)' :
         'linear-gradient(90deg,#238636,#3fb950)';
     }
+    
+    // Build severity text with damage classification
     var sevText = 'Severity: ' + (data && data.severity ? data.severity : 'Unknown');
     if(data && data.damaged_frames !== undefined) {
       sevText += ' | Damaged Frames: ' + data.damaged_frames + '/' + (data.total_frames||0);
     }
+    
+    // Add damage classification if available
+    if(data && data.damage_details) {
+      var dd = data.damage_details;
+      if(dd.category && dd.category !== 'None') {
+        sevText += ' | Type: ' + dd.category;
+      }
+      if(dd.repair_urgency && dd.repair_urgency !== 'None') {
+        sevText += ' | Urgency: ' + dd.repair_urgency;
+      }
+    }
+    
     var sevEl = document.getElementById(prefix+'Sev');
     if(sevEl) sevEl.textContent = sevText;
+    
+    // Add damage description if available
+    if(data && data.damage_details && data.damage_details.description) {
+      var descEl = document.getElementById(prefix+'Desc');
+      if(descEl) {
+        descEl.textContent = data.damage_details.description;
+        descEl.style.display = 'block';
+      }
+    }
   } catch (err) {
     console.error('showResult error', err);
   }
@@ -489,4 +512,268 @@ function doExport() {
   } catch (err) {
     console.error('doExport error', err);
   }
+}
+
+// ==================== BATCH PROCESSING ====================
+var batchFiles = [];
+var batchResultsData = [];
+
+// File input listener for batch - ATTACH IMMEDIATELY
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Setting up batch processing...');
+  
+  // Click handler for upload area
+  var uploadArea = document.getElementById('batchUploadArea');
+  var batchInput = document.getElementById('batchFiles');
+  
+  if(uploadArea && batchInput) {
+    uploadArea.style.cursor = 'pointer';
+    uploadArea.addEventListener('click', function() {
+      console.log('Upload area clicked');
+      batchInput.click();
+    });
+    
+    // Add hover effects
+    uploadArea.addEventListener('mouseenter', function() {
+      this.style.borderColor = '#3fb950';
+      this.style.transform = 'scale(1.01)';
+    });
+    uploadArea.addEventListener('mouseleave', function() {
+      this.style.borderColor = '#58a6ff';
+      this.style.transform = 'scale(1)';
+    });
+    
+    batchInput.addEventListener('change', function(e) {
+      console.log('Files selected:', e.target.files.length);
+      var files = Array.from(e.target.files);
+      if(files.length > 10) {
+        alert('Maximum 10 files allowed. Only first 10 will be processed.');
+        files = files.slice(0, 10);
+      }
+      batchFiles = files;
+      displayBatchFileList();
+    });
+  } else {
+    console.warn('Batch elements not found:', {uploadArea: !!uploadArea, batchInput: !!batchInput});
+  }
+});
+
+function displayBatchFileList() {
+  var listDiv = document.getElementById('batchFileList');
+  var btn = document.getElementById('batchAnalyzeBtn');
+  
+  if(!listDiv || !btn) {
+    console.error('Batch elements not found in displayBatchFileList');
+    return;
+  }
+  
+  if(batchFiles.length === 0) {
+    listDiv.innerHTML = '';
+    listDiv.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  
+  // Show the list div with light theme to match site
+  listDiv.style.display = 'block';
+  listDiv.style.background = '#f6f8fa';
+  listDiv.style.border = '1px solid #d0d7de';
+  
+  var html = '<div style="padding: 10px; background: white; border-radius: 6px;">';
+  html += '<strong style="color: #24292f;">Selected Files (' + batchFiles.length + '):</strong><br>';
+  batchFiles.forEach(function(f, i) {
+    var icon = f.type && f.type.startsWith('video') ? '🎥' : '📷';
+    var size = (f.size / 1024 / 1024).toFixed(2);
+    html += '<div style="padding: 5px 0; color: #57606a; font-size: 0.9rem;">';
+    html += icon + ' ' + (i+1) + '. ' + f.name + ' <span style="color: #8b949e;">(' + size + ' MB)</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  
+  listDiv.innerHTML = html;
+  btn.disabled = false;
+  console.log('File list displayed with', batchFiles.length, 'files');
+}
+
+function clearBatch() {
+  batchFiles = [];
+  var fileInput = document.getElementById('batchFiles');
+  var fileList = document.getElementById('batchFileList');
+  var btn = document.getElementById('batchAnalyzeBtn');
+  var results = document.getElementById('batchResults');
+  var load = document.getElementById('batchLoad');
+  
+  if(fileInput) fileInput.value = '';
+  if(fileList) {
+    fileList.innerHTML = '';
+    fileList.style.display = 'none';
+  }
+  if(btn) btn.disabled = true;
+  if(results) results.style.display = 'none';
+  if(load) load.style.display = 'none';
+}
+
+function analyzeBatch() {
+  if(batchFiles.length === 0) {
+    alert('Please select files first');
+    return;
+  }
+  
+  var btn = document.getElementById('batchAnalyzeBtn');
+  var loadDiv = document.getElementById('batchLoad');
+  var progressP = document.getElementById('batchProgress');
+  
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  loadDiv.style.display = 'flex';
+  progressP.textContent = 'Uploading ' + batchFiles.length + ' files...';
+  
+  var formData = new FormData();
+  batchFiles.forEach(function(f) {
+    formData.append('files', f);
+  });
+  
+  fetch('/predict_batch', {
+    method: 'POST',
+    body: formData
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    loadDiv.style.display = 'none';
+    btn.textContent = 'Analyze All Files';
+    btn.disabled = false;
+    
+    if(data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    
+    batchResultsData = data.results || [];
+    displayBatchResults(data);
+  })
+  .catch(function(err) {
+    loadDiv.style.display = 'none';
+    btn.textContent = 'Analyze All Files';
+    btn.disabled = false;
+    console.error('Batch error:', err);
+    alert('Failed to process batch. Check console for details.');
+  });
+}
+
+function displayBatchResults(data) {
+  var resultsDiv = document.getElementById('batchResults');
+  var summaryDiv = document.getElementById('batchSummary');
+  var listDiv = document.getElementById('batchResultsList');
+  
+  resultsDiv.style.display = 'block';
+  
+  // Calculate summary stats
+  var total = data.total_files || 0;
+  var damaged = 0;
+  var good = 0;
+  var errors = 0;
+  var potholeCount = 0;
+  var crackCount = 0;
+  
+  data.results.forEach(function(r) {
+    if(r.error) {
+      errors++;
+    } else if(r.result && r.result.includes('Damage')) {
+      damaged++;
+      if(r.damage_type === 'Major Damage' || r.damage_type === 'Pothole/Crack') {
+        potholeCount++;
+      } else if(r.damage_type === 'Moderate Damage' || r.damage_type === 'Surface Crack') {
+        crackCount++;
+      }
+    } else {
+      good++;
+    }
+  });
+  
+  // Display summary
+  var summaryHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">';
+  summaryHtml += '<div style="text-align: center; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #0969da;"><div style="font-size: 1.5rem; font-weight: 600;">' + total + '</div><div style="font-size: 0.8rem; color: #57606a;">Total Files</div></div>';
+  summaryHtml += '<div style="text-align: center; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #d1242f;"><div style="font-size: 1.5rem; font-weight: 600;">' + damaged + '</div><div style="font-size: 0.8rem; color: #57606a;">Damaged</div></div>';
+  summaryHtml += '<div style="text-align: center; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #1a7f37;"><div style="font-size: 1.5rem; font-weight: 600;">' + good + '</div><div style="font-size: 0.8rem; color: #57606a;">Good Roads</div></div>';
+  summaryHtml += '<div style="text-align: center; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #fb8500;"><div style="font-size: 1.5rem; font-weight: 600;">' + potholeCount + '</div><div style="font-size: 0.8rem; color: #57606a;">Potholes</div></div>';
+  summaryHtml += '<div style="text-align: center; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #9a6700;"><div style="font-size: 1.5rem; font-weight: 600;">' + crackCount + '</div><div style="font-size: 0.8rem; color: #57606a;">Cracks</div></div>';
+  summaryHtml += '</div>';
+  
+  if(errors > 0) {
+    summaryHtml += '<div style="margin-top: 10px; padding: 8px; background: #ffebe9; color: #d1242f; border-radius: 4px; font-size: 0.85rem;">';
+    summaryHtml += '⚠️ ' + errors + ' file(s) could not be processed';
+    summaryHtml += '</div>';
+  }
+  
+  summaryDiv.innerHTML = summaryHtml;
+  
+  // Display individual results
+  var listHtml = '';
+  data.results.forEach(function(r, i) {
+    if(r.error) {
+      listHtml += '<div style="padding: 12px; margin-bottom: 10px; background: #ffebe9; border-radius: 6px; border-left: 4px solid #d1242f;">';
+      listHtml += '<div style="font-weight: 500;">' + (i+1) + '. ' + r.filename + '</div>';
+      listHtml += '<div style="color: #d1242f; font-size: 0.85rem;">Error: ' + r.error + '</div>';
+      listHtml += '</div>';
+    } else {
+      var color = r.color === 'red' ? '#d1242f' : '#1a7f37';
+      var icon = r.type === 'video' ? '🎥' : '📷';
+      
+      listHtml += '<div style="padding: 12px; margin-bottom: 10px; background: white; border: 1px solid #d0d7de; border-radius: 6px; border-left: 4px solid ' + color + ';">';
+      listHtml += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+      listHtml += '<div style="font-weight: 500;">' + icon + ' ' + (i+1) + '. ' + r.filename + '</div>';
+      listHtml += '<div style="font-weight: 600; color: ' + color + ';">' + r.confidence + '%</div>';
+      listHtml += '</div>';
+      listHtml += '<div style="margin-top: 8px; color: ' + color + '; font-weight: 500;">' + r.result + '</div>';
+      if(r.damage_details) {
+        listHtml += '<div style="margin-top: 5px; font-size: 0.85rem; color: #57606a;">';
+        listHtml += '<span style="background: #f6f8fa; padding: 2px 6px; border-radius: 4px;">' + r.damage_details.category + '</span>';
+        listHtml += ' • ' + r.damage_details.repair_urgency + ' Priority';
+        listHtml += '</div>';
+      }
+      listHtml += '</div>';
+    }
+  });
+  
+  listDiv.innerHTML = listHtml;
+}
+
+function exportBatchResults() {
+  if(batchResultsData.length === 0) {
+    alert('No results to export');
+    return;
+  }
+  
+  var rows = [];
+  rows.push(['#','Filename','Type','Result','Confidence(%)','Damage Type','Category','Repair Urgency','Severity']);
+  
+  batchResultsData.forEach(function(r, i) {
+    if(!r.error) {
+      rows.push([
+        i+1,
+        r.filename,
+        r.type,
+        r.result,
+        r.confidence,
+        r.damage_type,
+        r.damage_details ? r.damage_details.category : '',
+        r.damage_details ? r.damage_details.repair_urgency : '',
+        r.severity
+      ]);
+    }
+  });
+  
+  var csv = rows.map(function(row) {
+    return row.map(function(c) { return '"' + String(c).replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\n');
+  
+  var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'batch_results_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

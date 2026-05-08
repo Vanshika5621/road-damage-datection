@@ -75,6 +75,7 @@ td{padding:10px;border-bottom:1px solid #f0e9db;color:#333}
 			<div class="panel-title">Navigation</div>
 			<ul class="nav-list">
 				<li class="active" data-target="image" onclick="showTab('image', this)">Image Analysis</li>
+				<li data-target="batch" onclick="showTab('batch', this)">Batch Upload</li>
 				<li data-target="camera" onclick="showTab('camera', this)">Camera Stream</li>
 				<li data-target="video" onclick="showTab('video', this)">Video Analysis</li>
 				<li data-target="history" onclick="showTab('history', this); if(typeof loadHistory==='function') loadHistory();">History</li>
@@ -120,6 +121,44 @@ td{padding:10px;border-bottom:1px solid #f0e9db;color:#333}
 <div class="result-conf" id="imgConf"></div>
 <div class="progress-bar"><div class="progress-fill" id="imgProgress"></div></div>
 <div class="result-sev" id="imgSev"></div>
+<div class="result-desc" id="imgDesc" style="display:none; margin-top:10px; padding:10px; background:#f6f8fa; border-radius:4px; font-size:0.9rem; color:#57606a;"></div>
+</div>
+</div>
+
+<!-- BATCH PROCESSING -->
+<div class="section" id="batchSection">
+<div class="card">
+<div class="card-title">Batch Upload (Multiple Files)</div>
+<div class="upload-zone" id="batchUploadArea" style="border:2px dashed #58a6ff;">
+<div class="upload-icon-wrap" style="font-size:2.5rem; margin-bottom:12px;">📁📁</div>
+<p class="upload-text">Click to select multiple files</p>
+<p class="upload-sub">Images & Videos supported (Max 10 files)</p>
+</div>
+<input type="file" id="batchFiles" accept="image/*,video/*" multiple style="display:none;">
+<div id="batchFileList" style="margin: 15px 0; max-height: 200px; overflow-y: auto; background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:12px; display:none;"></div>
+<div style="display:flex; gap:10px; margin-top:15px;">
+<button class="btn btn-primary" id="batchAnalyzeBtn" onclick="analyzeBatch()" disabled style="flex:1;">Analyze All Files</button>
+<button class="btn" onclick="clearBatch()" style="flex:1;">Clear</button>
+</div>
+</div>
+<div class="load" id="batchLoad" style="display:none">
+<div class="spinner"></div>
+<p>Processing batch...</p>
+<p id="batchProgress" style="font-size:0.8rem;color:#666;margin-top:8px">0/0 files processed</p>
+</div>
+<div id="batchResults" style="display:none">
+<div class="card">
+<div class="card-title" style="display:flex; justify-content:space-between; align-items:center">
+<span>Batch Results Summary</span>
+<button class="btn" onclick="exportBatchResults()">Export CSV</button>
+</div>
+<div id="batchSummary" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+<!-- Summary stats will appear here -->
+</div>
+<div id="batchResultsList" style="max-height: 400px; overflow-y: auto;">
+<!-- Individual results will appear here -->
+</div>
+</div>
 </div>
 </div>
 
@@ -160,6 +199,7 @@ td{padding:10px;border-bottom:1px solid #f0e9db;color:#333}
 <div class="result-conf" id="vidConf"></div>
 <div class="progress-bar"><div class="progress-fill" id="vidProgress"></div></div>
 <div class="result-sev" id="vidSev"></div>
+<div class="result-desc" id="vidDesc" style="display:none; margin-top:10px; padding:10px; background:#f6f8fa; border-radius:4px; font-size:0.9rem; color:#57606a;"></div>
 </div>
 </div>
 

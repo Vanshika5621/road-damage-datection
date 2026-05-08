@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
+from typing import List
 import logging
 import tensorflow as tf
 import numpy as np
@@ -283,7 +284,11 @@ async def predict(file: UploadFile = File(...)):
     img_array = preprocess_pil(filepath)
     raw_confidence = predict_image_array(img_array)
     result, severity, color, calibrated_conf = get_result(raw_confidence)
-    damage_type = get_damage_type(raw_confidence)
+    
+    # Get detailed damage classification
+    damage_info = classify_damage_detailed(raw_confidence, img_array)
+    damage_type = damage_info['type']
+    
     # Use calibrated confidence for display
     save_prediction(file.filename, result, calibrated_conf, severity, damage_type, 'image')
     return JSONResponse({
@@ -291,8 +296,157 @@ async def predict(file: UploadFile = File(...)):
         'confidence': calibrated_conf,
         'severity': severity,
         'color': color,
-        'damage_type': damage_type
+        'damage_type': damage_type,
+        'damage_details': damage_info
     })
+
+@app.post("/predict_batch")
+async def predict_batch(files: List[UploadFile] = File(...)):
+    """Process multiple images/videos in batch."""
+    if model is None:
+        return JSONResponse({'error': 'Model not loaded'}, status_code=503)
+    
+    results = []
+    os.makedirs('uploads', exist_ok=True)
+    
+    for file in files:
+        try:
+            filepath = os.path.join('uploads', file.filename)
+            content = await file.read()
+            with open(filepath, 'wb') as f:
+                f.write(content)
+            
+            # Check if image or video
+            if file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                # Video processing
+                result = await process_video_file(filepath, file.filename)
+            else:
+                # Image processing
+                result = await process_image_file(filepath, file.filename)
+            
+            results.append(result)
+            
+        except Exception as e:
+            results.append({
+                'filename': file.filename,
+                'error': str(e)
+            })
+    
+    return JSONResponse({
+        'total_files': len(files),
+        'results': results
+    })
+
+async def process_image_file(filepath: str, filename: str):
+    """Process a single image file."""
+    img_array = preprocess_pil(filepath)
+    raw_confidence = predict_image_array(img_array)
+    
+    # Get detailed damage classification
+    damage_info = classify_damage_detailed(raw_confidence, img_array)
+    
+    result, severity, color, calibrated_conf = get_result(raw_confidence)
+    damage_type = damage_info['type']
+    
+    save_prediction(filename, result, calibrated_conf, severity, damage_type, 'image')
+    
+    return {
+        'filename': filename,
+        'type': 'image',
+        'result': result,
+        'confidence': calibrated_conf,
+        'severity': severity,
+        'color': color,
+        'damage_type': damage_type,
+        'damage_details': damage_info
+    }
+
+async def process_video_file(filepath: str, filename: str):
+    """Process a single video file."""
+    cap = cv2.VideoCapture(filepath)
+    total_frames = 0
+    confidences = []
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if total_frames % 30 == 0:
+            img_array = preprocess_frame(frame)
+            raw_confidence = predict_image_array(img_array)
+            confidences.append(raw_confidence)
+        total_frames += 1
+    cap.release()
+    
+    if not confidences:
+        return {'filename': filename, 'error': 'Could not process video'}
+    
+    avg_raw_confidence = sum(confidences) / len(confidences)
+    calibrated = calibrate_video_confidence(avg_raw_confidence)
+    
+    if calibrated > 0.5:
+        result = "Road Damage Detected!"
+        severity = "High" if calibrated > 0.8 else "Medium"
+        color = "red"
+    else:
+        result = "Road is Good!"
+        severity = "None"
+        color = "green"
+    
+    calibrated_conf = round(calibrated * 100, 2)
+    damage_type = get_damage_type(avg_raw_confidence)
+    
+    save_prediction(filename, result, calibrated_conf, severity, damage_type, 'video')
+    
+    return {
+        'filename': filename,
+        'type': 'video',
+        'result': result,
+        'confidence': calibrated_conf,
+        'severity': severity,
+        'color': color,
+        'damage_type': damage_type,
+        'total_frames': len(confidences)
+    }
+
+def classify_damage_detailed(raw_confidence, img_array):
+    """Detailed damage classification with confidence-based categorization."""
+    
+    # Base damage type from raw confidence
+    if raw_confidence > 0.90:
+        base_type = "Major Damage"
+        description = "Severe road damage detected - immediate repair needed"
+    elif raw_confidence > 0.82:
+        base_type = "Moderate Damage"
+        description = "Significant road damage detected - repair recommended"
+    elif raw_confidence > 0.70:
+        base_type = "Minor Damage"
+        description = "Minor wear and tear detected - monitor condition"
+    else:
+        base_type = "Good Condition"
+        description = "Road is in good condition"
+    
+    # Estimate damage category based on confidence levels
+    if raw_confidence > 0.88:
+        category = "Pothole/Crack"
+        repair_urgency = "High"
+    elif raw_confidence > 0.80:
+        category = "Surface Crack"
+        repair_urgency = "Medium"
+    elif raw_confidence > 0.70:
+        category = "Wear & Tear"
+        repair_urgency = "Low"
+    else:
+        category = "None"
+        repair_urgency = "None"
+    
+    return {
+        'type': base_type,
+        'category': category,
+        'description': description,
+        'repair_urgency': repair_urgency,
+        'raw_confidence': round(raw_confidence * 100, 2)
+    }
 
 @app.post("/predict_video")
 async def predict_video(file: UploadFile = File(...)):
@@ -303,26 +457,25 @@ async def predict_video(file: UploadFile = File(...)):
     content = await file.read()
     with open(filepath, 'wb') as f:
         f.write(content)
+    
     cap = cv2.VideoCapture(filepath)
     total_frames = 0
-    damaged_frames = 0
     confidences = []
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        # Process every 30th frame for faster video analysis
         if total_frames % 30 == 0:
             img_array = preprocess_frame(frame)
             raw_confidence = predict_image_array(img_array)
-            # Store RAW confidence, calibrate only once at the end
             confidences.append(raw_confidence)
         total_frames += 1
     cap.release()
+    
     if not confidences:
         return JSONResponse({'error': 'Could not process video'})
     
-    # Average of raw predictions
     avg_raw_confidence = sum(confidences) / len(confidences)
     
     # Use VIDEO-specific calibration (stricter for highways)
@@ -339,16 +492,21 @@ async def predict_video(file: UploadFile = File(...)):
         color = "green"
     
     calibrated_conf = round(calibrated * 100, 2)
-    damage_type = get_damage_type(avg_raw_confidence)
+    
+    # Get detailed damage classification
+    damage_info = classify_damage_detailed(avg_raw_confidence, None)
+    damage_type = damage_info['type']
+    
     save_prediction(file.filename, result, calibrated_conf, severity, damage_type, 'video')
+    
     return JSONResponse({
         'result': result,
         'confidence': calibrated_conf,
         'severity': severity,
         'color': color,
         'damage_type': damage_type,
-        'total_frames': len(confidences),
-        'damaged_frames': damaged_frames
+        'damage_details': damage_info,
+        'total_frames': len(confidences)
     })
 
 @app.get("/video_feed")
